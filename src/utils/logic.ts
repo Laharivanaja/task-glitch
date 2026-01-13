@@ -46,8 +46,6 @@ export function sortTasks(tasks: ReadonlyArray<DerivedTask>): DerivedTask[] {
     if (b.priorityWeight !== a.priorityWeight) {
       return b.priorityWeight - a.priorityWeight;
     }
-
-    // deterministic tie-breaker
     return a.title.localeCompare(b.title);
   });
 }
@@ -56,11 +54,11 @@ export function sortTasks(tasks: ReadonlyArray<DerivedTask>): DerivedTask[] {
    Metrics
    ========================= */
 export function computeTotalRevenue(tasks: ReadonlyArray<Task>): number {
-  return tasks.filter(t => t.status === 'Done').reduce((sum, t) => sum + t.revenue, 0);
+  return tasks.filter(t => t.status === 'Done').reduce((s, t) => s + t.revenue, 0);
 }
 
 export function computeTotalTimeTaken(tasks: ReadonlyArray<Task>): number {
-  return tasks.reduce((sum, t) => sum + t.timeTaken, 0);
+  return tasks.reduce((s, t) => s + t.timeTaken, 0);
 }
 
 export function computeTimeEfficiency(tasks: ReadonlyArray<Task>): number {
@@ -76,10 +74,7 @@ export function computeRevenuePerHour(tasks: ReadonlyArray<Task>): number {
 }
 
 export function computeAverageROI(tasks: ReadonlyArray<Task>): number {
-  const rois = tasks
-    .map(t => computeROI(t.revenue, t.timeTaken))
-    .filter((v): v is number => Number.isFinite(v));
-
+  const rois = tasks.map(t => computeROI(t.revenue, t.timeTaken));
   if (rois.length === 0) return 0;
   return rois.reduce((s, r) => s + r, 0) / rois.length;
 }
@@ -93,33 +88,7 @@ export function computePerformanceGrade(
 }
 
 /* =========================
-   Analytics (REQUIRED)
-   ========================= */
-export type FunnelCounts = {
-  todo: number;
-  inProgress: number;
-  done: number;
-  conversionTodoToInProgress: number;
-  conversionInProgressToDone: number;
-};
-
-export function computeFunnel(tasks: ReadonlyArray<Task>): FunnelCounts {
-  const todo = tasks.filter(t => t.status === 'Todo').length;
-  const inProgress = tasks.filter(t => t.status === 'In Progress').length;
-  const done = tasks.filter(t => t.status === 'Done').length;
-
-  const base = todo + inProgress + done;
-  return {
-    todo,
-    inProgress,
-    done,
-    conversionTodoToInProgress: base ? (inProgress + done) / base : 0,
-    conversionInProgressToDone: inProgress ? done / inProgress : 0,
-  };
-}
-
-/* =========================
-   REQUIRED HELPERS
+   Analytics helpers
    ========================= */
 export function daysBetween(aISO: string, bISO: string): number {
   const a = new Date(aISO).getTime();
@@ -144,4 +113,61 @@ export function computeVelocityByPriority(tasks: ReadonlyArray<Task>) {
       return [p, { avgDays: avg, medianDays: median }];
     })
   );
+}
+
+export function computeThroughputByWeek(tasks: ReadonlyArray<Task>) {
+  const map = new Map<string, number>();
+
+  tasks.forEach(t => {
+    if (!t.completedAt) return;
+    const d = new Date(t.completedAt);
+    const key = `${d.getUTCFullYear()}-W${getWeekNumber(d)}`;
+    map.set(key, (map.get(key) ?? 0) + 1);
+  });
+
+  return Array.from(map.entries()).map(([week, count]) => ({ week, count }));
+}
+
+export function computeWeightedPipeline(tasks: ReadonlyArray<Task>): number {
+  const weights = { Todo: 0.1, 'In Progress': 0.5, Done: 1 } as const;
+  return tasks.reduce((s, t) => s + t.revenue * weights[t.status], 0);
+}
+
+export function computeForecast(
+  weekly: Array<{ week: string; count: number }>,
+  horizonWeeks = 4
+) {
+  const result: Array<{ week: string; count: number }> = [];
+  if (weekly.length === 0) return result;
+
+  const avg =
+    weekly.reduce((s, w) => s + w.count, 0) / weekly.length;
+
+  for (let i = 1; i <= horizonWeeks; i++) {
+    result.push({ week: `+${i}`, count: Math.round(avg) });
+  }
+  return result;
+}
+
+export function computeCohortRevenue(tasks: ReadonlyArray<Task>) {
+  const map = new Map<string, number>();
+
+  tasks.forEach(t => {
+    const d = new Date(t.createdAt);
+    const key = `${d.getUTCFullYear()}-W${getWeekNumber(d)}|${t.priority}`;
+    map.set(key, (map.get(key) ?? 0) + t.revenue);
+  });
+
+  return Array.from(map.entries()).map(([key, revenue]) => {
+    const [week, priority] = key.split('|');
+    return { week, priority: priority as Task['priority'], revenue };
+  });
+}
+
+function getWeekNumber(d: Date): number {
+  const date = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
+  const day = date.getUTCDay() || 7;
+  date.setUTCDate(date.getUTCDate() + 4 - day);
+  const yearStart = new Date(Date.UTC(date.getUTCFullYear(), 0, 1));
+  return Math.ceil((((date.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
 }
