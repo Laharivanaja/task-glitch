@@ -115,17 +115,27 @@ export function computeVelocityByPriority(tasks: ReadonlyArray<Task>) {
   );
 }
 
-export function computeThroughputByWeek(tasks: ReadonlyArray<Task>) {
-  const map = new Map<string, number>();
+export function computeThroughputByWeek(
+  tasks: ReadonlyArray<Task>
+): Array<{ week: string; count: number; revenue: number }> {
+  const byWeek = new Map<string, { count: number; revenue: number }>();
 
   tasks.forEach(t => {
     if (!t.completedAt) return;
     const d = new Date(t.completedAt);
-    const key = `${d.getUTCFullYear()}-W${getWeekNumber(d)}`;
-    map.set(key, (map.get(key) ?? 0) + 1);
+    const weekKey = `${d.getUTCFullYear()}-W${getWeekNumber(d)}`;
+
+    const v = byWeek.get(weekKey) ?? { count: 0, revenue: 0 };
+    v.count += 1;
+    v.revenue += t.revenue;
+    byWeek.set(weekKey, v);
   });
 
-  return Array.from(map.entries()).map(([week, count]) => ({ week, count }));
+  return Array.from(byWeek.entries()).map(([week, v]) => ({
+    week,
+    count: v.count,
+    revenue: v.revenue,
+  }));
 }
 
 export function computeWeightedPipeline(tasks: ReadonlyArray<Task>): number {
@@ -134,19 +144,18 @@ export function computeWeightedPipeline(tasks: ReadonlyArray<Task>): number {
 }
 
 export function computeForecast(
-  weekly: Array<{ week: string; count: number }>,
+  weekly: Array<{ week: string; revenue: number }>,
   horizonWeeks = 4
-) {
-  const result: Array<{ week: string; count: number }> = [];
-  if (weekly.length === 0) return result;
+): Array<{ week: string; revenue: number }> {
+  if (weekly.length < 2) return [];
 
   const avg =
-    weekly.reduce((s, w) => s + w.count, 0) / weekly.length;
+    weekly.reduce((s, w) => s + w.revenue, 0) / weekly.length;
 
-  for (let i = 1; i <= horizonWeeks; i++) {
-    result.push({ week: `+${i}`, count: Math.round(avg) });
-  }
-  return result;
+  return Array.from({ length: horizonWeeks }, (_, i) => ({
+    week: `+${i + 1}`,
+    revenue: Math.max(0, avg),
+  }));
 }
 
 export function computeCohortRevenue(tasks: ReadonlyArray<Task>) {
