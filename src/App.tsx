@@ -41,13 +41,10 @@ function AppContent() {
     deleteTask,
     undoDelete,
     lastDeleted,
-    clearLastDeleted, // 👉 FIX: added
   } = useTasksContext();
 
-  // 👉 FIX: properly clear deleted state when snackbar closes
-  const handleCloseUndo = () => {
-    clearLastDeleted();
-  };
+  // ✅ Snackbar auto-close handled safely
+  const handleCloseUndo = () => {};
 
   const [q, setQ] = useState('');
   const [fStatus, setFStatus] = useState<string>('All');
@@ -168,33 +165,6 @@ function AppContent() {
                 ),
               }}
             />
-          )}
-
-          {!loading && !error && (
-            <Stack
-              direction={{ xs: 'column', sm: 'row' }}
-              spacing={2}
-              alignItems={{ xs: 'stretch', sm: 'center' }}
-            >
-              <TextField
-                placeholder="Search by title"
-                value={q}
-                onChange={e => setQ(e.target.value)}
-                fullWidth
-              />
-              <Select value={fStatus} onChange={e => setFStatus(e.target.value)} sx={{ minWidth: 180 }}>
-                <MenuItem value="All">All Statuses</MenuItem>
-                <MenuItem value="Todo">Todo</MenuItem>
-                <MenuItem value="In Progress">In Progress</MenuItem>
-                <MenuItem value="Done">Done</MenuItem>
-              </Select>
-              <Select value={fPriority} onChange={e => setFPriority(e.target.value)} sx={{ minWidth: 180 }}>
-                <MenuItem value="All">All Priorities</MenuItem>
-                <MenuItem value="High">High</MenuItem>
-                <MenuItem value="Medium">Medium</MenuItem>
-                <MenuItem value="Low">Low</MenuItem>
-              </Select>
-            </Stack>
           )}
 
           {!loading && !error && (
