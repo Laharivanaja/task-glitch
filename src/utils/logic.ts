@@ -171,3 +171,32 @@ function getWeekNumber(d: Date): number {
   const yearStart = new Date(Date.UTC(date.getUTCFullYear(), 0, 1));
   return Math.ceil((((date.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
 }
+
+// ✅ MISSING EXPORT (REQUIRED BY AnalyticsDashboard)
+export type FunnelCounts = {
+  todo: number;
+  inProgress: number;
+  done: number;
+  conversionTodoToInProgress: number;
+  conversionInProgressToDone: number;
+};
+
+export function computeFunnel(tasks: ReadonlyArray<Task>): FunnelCounts {
+  const todo = tasks.filter(t => t.status === 'Todo').length;
+  const inProgress = tasks.filter(t => t.status === 'In Progress').length;
+  const done = tasks.filter(t => t.status === 'Done').length;
+
+  const baseTodo = todo + inProgress + done;
+
+  return {
+    todo,
+    inProgress,
+    done,
+    conversionTodoToInProgress: baseTodo
+      ? (inProgress + done) / baseTodo
+      : 0,
+    conversionInProgressToDone: inProgress
+      ? done / inProgress
+      : 0,
+  };
+}
